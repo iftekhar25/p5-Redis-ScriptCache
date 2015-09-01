@@ -20,7 +20,13 @@ sub new {
     my $self = bless { @_ }, $class;
 
     $self->redis_conn
-        or die "Need Redis connection to register script";
+        or die "Need Redis connection";
+
+    return $self;
+}
+
+sub load_all_scripts {
+    my ($self) = @_;
 
     if ( $self->script_dir ) {
         for my $file (glob("$self->script_dir/*.lua")) {
@@ -31,8 +37,6 @@ sub new {
             $self->{_script_cache}->{$script_name} = $sha1;
         }
     }
-
-    return $self;
 }
 
 sub register_script {
