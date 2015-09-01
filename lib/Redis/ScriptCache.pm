@@ -72,6 +72,16 @@ sub register_file {
     return $self->register_script($script);
 }
 
+sub call {
+    my $self = shift;
+    my $script_name = $_[0];
+
+    return $self->run_script( $self->_script_cache->{$script_name}, @_ )
+        if $self->_script_cache->{$script_name};
+
+    croak("Unknown script $name");
+}
+
 1;
 
 __END__
