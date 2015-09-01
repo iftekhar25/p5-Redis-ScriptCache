@@ -86,6 +86,12 @@ sub call {
     croak("Unknown script $name");
 }
 
+sub scripts {
+    my ($self) = @_;
+    # return keys in the _script_cache that aren't sha1 => 1, but script_name => sha1
+    return grep { $self->_script_cache->{$_} != 1 } keys %{ $self->_script_cache };
+}
+
 1;
 
 __END__
