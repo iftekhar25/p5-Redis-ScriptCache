@@ -5,11 +5,35 @@ use warnings;
 our $VERSION = '0.01';
 
 use Digest::SHA1 qw(sha1_hex);
+use File::Basename;
 
 use Class::XSAccessor {
-    constructor => 'new',
-    getters => [qw(redis_conn)],
+    getters => [qw(
+        redis_conn
+        script_dir
+        _script_cache
+    )],
 };
+
+sub new {
+    my $class = shift;
+    my $self = bless { @_ }, $class;
+
+    $self->redis_conn
+        or die "Need Redis connection to register script";
+
+    if ( $self->script_dir ) {
+        for my $file (glob("$self->script_dir/*.lua")) {
+            my $sha1 = $self->register_file($file);
+            $self->{_script_cache}->{$sha1} = 1;
+            my $script_name = basename( $file );
+            $script_name =~ s/\.lua//;
+            $self->{_script_cache}->{$script_name} = $sha1;
+        }
+    }
+
+    return $self;
+}
 
 sub register_script {
     my ($self, $tmp, $sha) = @_; # sha optional
@@ -23,16 +47,10 @@ sub register_script {
     }
     return $sha if exists $self->{$sha};
 
-    my $conn = $self->redis_conn
-        or die "Need Redis connection to register script";
-
-    my $rv;
-    eval {
-        ($rv) = $conn->script_exists($sha)
-    };
-
-    $conn->script_load($$script) if not $rv;
-    $self->{$sha} = $script;
+    if ( not exists $self->_script_cache->{$sha} ) {
+        $self->redis_conn->script_load($$script);
+        $self->{_script_cache}->{$sha} = 1;
+    }
 
     return $sha;
 }
@@ -40,12 +58,18 @@ sub register_script {
 sub run_script {
     my ($self, $sha, $args, $script) = @_; # script optional
     
-    if (defined $script and not exists $self->{$sha}) {
+    if (defined $script and not exists $self->_script_cache->{$sha}) {
         $self->register_script($script, $sha);
     }
 
     my $conn = $self->redis_conn;
     return $conn->evalsha($sha, ($args ? (@$args) : (0)));
+}
+
+sub register_file {
+    my ($self, $path_to_file) = @_;
+    my $script = read_file($file);
+    return $self->register_script($script);
 }
 
 1;
