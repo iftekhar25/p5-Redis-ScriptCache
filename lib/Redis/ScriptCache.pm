@@ -72,7 +72,7 @@ sub run_script {
 
 sub register_file {
     my ($self, $path_to_file) = @_;
-    my $script = read_file($file);
+    my $script = read_file($path_to_file);
     return $self->register_script($script);
 }
 
@@ -83,7 +83,7 @@ sub call {
     return $self->run_script( $self->_script_cache->{$script_name}, \@_ )
         if $self->_script_cache->{$script_name};
 
-    croak("Unknown script $name");
+    croak("Unknown script $script_name");
 }
 
 sub scripts {
