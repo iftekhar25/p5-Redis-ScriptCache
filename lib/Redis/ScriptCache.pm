@@ -6,6 +6,7 @@ our $VERSION = '0.01';
 
 use Digest::SHA1 qw(sha1_hex);
 use File::Basename;
+use Carp;
 
 use Class::XSAccessor {
     getters => [qw(
@@ -19,23 +20,31 @@ sub new {
     my $class = shift;
     my $self = bless { @_ }, $class;
 
+    $self->{_script_cache} = {};
     $self->redis_conn
-        or die "Need Redis connection";
+        or croak("Need Redis connection");
 
     return $self;
 }
 
 sub load_all_scripts {
-    my ($self) = @_;
+    my $self = shift;
+    my %args = @_;
+
+    $self->{script_dir} = $args{script_dir}
+        if exists $args{script_dir};
 
     if ( $self->script_dir ) {
-        for my $file (glob("$self->script_dir/*.lua")) {
+        for my $file (glob($self->script_dir . "/*.lua")) {
             my $sha1 = $self->register_file($file);
             $self->{_script_cache}->{$sha1} = 1;
             my $script_name = basename( $file );
             $script_name =~ s/\.lua//;
             $self->{_script_cache}->{$script_name} = $sha1;
         }
+        return $self->scripts;
+    } else {
+        croak("No script_dir specified");
     }
 }
 
@@ -72,7 +81,9 @@ sub run_script {
 
 sub register_file {
     my ($self, $path_to_file) = @_;
-    my $script = read_file($path_to_file);
+    open my $fh, '<', $path_to_file
+        or croak "error opening $path_to_file: $!";
+    my $script = do { local $/; <$fh> };
     return $self->register_script($script);
 }
 
@@ -88,8 +99,9 @@ sub call {
 
 sub scripts {
     my ($self) = @_;
-    # return keys in the _script_cache that aren't sha1 => 1, but script_name => sha1
-    return grep { $self->_script_cache->{$_} != 1 } keys %{ $self->_script_cache };
+    # return keys in the _script_cache that aren't sha1 => 1,
+    # but script_name => sha1
+    return grep { $self->_script_cache->{$_} ne '1' } keys %{ $self->_script_cache };
 }
 
 1;
