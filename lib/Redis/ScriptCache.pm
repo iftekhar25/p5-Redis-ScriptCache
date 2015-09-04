@@ -89,7 +89,7 @@ sub register_file {
 
 sub call {
     my $self = shift;
-    my $script_name = $_[0];
+    my $script_name = shift;
 
     return $self->run_script( $self->_script_cache->{$script_name}, \@_ )
         if $self->_script_cache->{$script_name};
