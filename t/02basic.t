@@ -34,7 +34,7 @@ eval {
   exit(0);
 };
 
-plan tests => 5;
+plan tests => 6;
 
 my $cache = Redis::ScriptCache->new(redis_conn => $conn);
 isa_ok($cache, "Redis::ScriptCache");
@@ -51,3 +51,5 @@ is($res, 2, "run script with args works");
 $res = $cache->run_script(Digest::SHA1::sha1_hex("return 3"), [0], "return 3");
 is($res, 3, "run script without pre-cached sha");
 
+my @res = $cache->load_all_scripts(script_dir => 't/lua');
+is_deeply(\@res, [ 'test' ], "load_scripts works for good scripts");
