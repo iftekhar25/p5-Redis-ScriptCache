@@ -34,22 +34,56 @@ eval {
   exit(0);
 };
 
-plan tests => 6;
+plan tests => 10;
 
 my $cache = Redis::ScriptCache->new(redis_conn => $conn);
 isa_ok($cache, "Redis::ScriptCache");
 
-my $sha = $cache->register_script("return 2");
-ok(defined $sha && length($sha) == 40, "register_script returns SHA");
+$cache = Redis::ScriptCache->new(
+    redis_conn => $conn,
+    script_dir => 't/lua',
+);
 
-my $res = $cache->run_script($sha);
+# although we're passing in the script_name, we return it, so we can
+# future-proof it with versioning, like script_name_v2
+my $script_name = $cache->register_script('script_name', 'return 2');
+is( $script_name, 'script_name', "register_script 'script_name'");
+
+# repeat, testing that re-registration works OK
+$script_name = $cache->register_script('script_name', 'return 2');
+is( $script_name, 'script_name', "register_script 'script_name'");
+
+# test for scalar ref
+$script_name = $cache->register_script('script_name', \'return 2');
+is( $script_name, 'script_name', "register_script 'script_name'");
+
+# test register_file
+# because script_dir is already declared, 't/lua' is implicit
+$script_name = $cache->register_file('test.lua'); 
+is( $script_name, 'test', "register_file 'test'");
+
+# repeat, testing that re-registration works OK
+$script_name = $cache->register_file('test.lua'); 
+is( $script_name, 'test', "register_file 'test'");
+
+# create an object with a trailing slash in script_dir, and then register
+$cache = Redis::ScriptCache->new(
+    redis_conn => $conn,
+    script_dir => 't/lua/',
+);
+$script_name = $cache->register_file('test.lua'); 
+is( $script_name, 'test', "register_file 'test'");
+
+# TODO: add test-cases for invalid file-paths
+# TODO: is an absolute path a valid path?
+
+# run_script for an already-registered script
+my $res = $cache->run_script('test');
 is($res, 2, "run script without args works");
 
-$res = $cache->run_script($sha, [0]);
+$res = $cache->run_script('test', [0]);
 is($res, 2, "run script with args works");
 
-$res = $cache->run_script(Digest::SHA1::sha1_hex("return 3"), [0], "return 3");
-is($res, 3, "run script without pre-cached sha");
+my @script_names = $cache->register_all_scripts();
+is_deeply(\@script_names, [ 'test', 'test2' ], "load_scripts works for good scripts");
 
-my @res = $cache->load_all_scripts(script_dir => 't/lua');
-is_deeply(\@res, [ 'test' ], "load_scripts works for good scripts");
