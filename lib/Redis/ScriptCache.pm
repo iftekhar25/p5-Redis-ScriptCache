@@ -49,8 +49,8 @@ sub load_all_scripts {
 }
 
 sub register_script {
-    my ($self, $tmp, $sha) = @_; # sha optional
-    my $script = ref($tmp) ? $tmp : \$tmp;
+    my ($self, $script, $sha) = @_; # sha optional
+    $script = ref($script) ? $script : \$script;
 
     if (defined $sha) {
       $sha = lc($sha);
