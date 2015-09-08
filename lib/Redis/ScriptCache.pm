@@ -1,4 +1,5 @@
 package Redis::ScriptCache;
+use File::Spec;
 use strict;
 use warnings;
 
@@ -6,6 +7,7 @@ our $VERSION = '0.01';
 
 use Digest::SHA1 qw(sha1_hex);
 use File::Basename;
+use File::Spec;
 use Carp;
 
 use Class::XSAccessor {
@@ -20,6 +22,9 @@ sub new {
     my $class = shift;
     my $self = bless { @_ }, $class;
 
+    if ( $self->script_dir ) {
+    }
+
     $self->{_script_cache} = {};
     $self->redis_conn
         or croak("Need Redis connection");
@@ -27,7 +32,7 @@ sub new {
     return $self;
 }
 
-sub load_all_scripts {
+sub register_all_scripts {
     my $self = shift;
     my %args = @_;
 
@@ -49,42 +54,43 @@ sub load_all_scripts {
 }
 
 sub register_script {
-    my ($self, $script, $sha) = @_; # sha optional
-    $script = ref($script) ? $script : \$script;
+    my ($self, $script_name, $script) = @_;
+    my $script_ref = ref($script) ? $script : \$script;
 
-    if (defined $sha) {
-      $sha = lc($sha);
-    }
-    else {
-      $sha = sha1_hex($$script);
-    }
-    return $sha if exists $self->{$sha};
+    return $script_name
+        if exists $self->{_script_cache}->{$script_name};
 
-    if ( not exists $self->_script_cache->{$sha} ) {
-        $self->redis_conn->script_load($$script);
-        $self->{_script_cache}->{$sha} = 1;
-    }
+    my $sha = $self->redis_conn->script_load($$script_ref);
+    $self->{_script_cache}->{$script_name} = $sha;
 
-    return $sha;
+    return $script_name;
 }
 
 sub run_script {
-    my ($self, $sha, $args, $script) = @_; # script optional
+    my ($self, $script_name, $args) = @_;
     
-    if (defined $script and not exists $self->_script_cache->{$sha}) {
-        $self->register_script($script, $sha);
+    my $conn = $self->redis_conn;
+    my $sha = $self->_script_cache->{$script_name};
+
+    if ( !$sha ) {
+        croak("Unknown script $script_name");
     }
 
-    my $conn = $self->redis_conn;
     return $conn->evalsha($sha, ($args ? (@$args) : (0)));
 }
 
 sub register_file {
     my ($self, $path_to_file) = @_;
-    open my $fh, '<', $path_to_file
-        or croak "error opening $path_to_file: $!";
+    my @split_script_dir   = File::Spec->splitdir( $self->script_dir );
+    my @split_path_to_file = File::Spec->splitdir( $path_to_file );
+    open my $fh, '<', File::Spec->catdir(
+        @split_script_dir,
+        @split_path_to_file,
+    ) or croak "error opening $path_to_file: $!";
+    my $script_name = $split_path_to_file[ $#split_path_to_file ];
+    $script_name =~ s/\.lua$//;
     my $script = do { local $/; <$fh> };
-    return $self->register_script($script);
+    return $self->register_script($script_name, $script);
 }
 
 sub call {
