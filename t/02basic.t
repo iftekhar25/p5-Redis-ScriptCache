@@ -51,20 +51,20 @@ is( $script_name, 'script_name', "register_script 'script_name'");
 
 # repeat, testing that re-registration works OK
 $script_name = $cache->register_script('script_name', 'return 2');
-is( $script_name, 'script_name', "register_script 'script_name'");
+is( $script_name, 'script_name', "re-register_script 'script_name'");
 
 # test for scalar ref
 $script_name = $cache->register_script('script_name', \'return 2');
-is( $script_name, 'script_name', "register_script 'script_name'");
+is( $script_name, 'script_name', "register_script 'script_name' with scalar ref");
 
 # test register_file
 # because script_dir is already declared, 't/lua' is implicit
 $script_name = $cache->register_file('test.lua'); 
-is( $script_name, 'test', "register_file 'test'");
+is( $script_name, 'test', "register_file 'test' (default case with script_dir with no trailing slash)");
 
 # repeat, testing that re-registration works OK
 $script_name = $cache->register_file('test.lua'); 
-is( $script_name, 'test', "register_file 'test'");
+is( $script_name, 'test', "re-register_file 'test'");
 
 # create an object with a trailing slash in script_dir, and then register
 $cache = Redis::ScriptCache->new(
@@ -72,7 +72,7 @@ $cache = Redis::ScriptCache->new(
     script_dir => 't/lua/',
 );
 $script_name = $cache->register_file('test.lua'); 
-is( $script_name, 'test', "register_file 'test'");
+is( $script_name, 'test', "register_file 'test' with script_dir with trailing slash");
 
 # TODO: add test-cases for invalid file-paths
 # TODO: is an absolute path a valid path?
@@ -85,5 +85,5 @@ $res = $cache->run_script('test', [0]);
 is($res, 2, "run script with args works");
 
 my @script_names = $cache->register_all_scripts();
-is_deeply(\@script_names, [ 'test', 'test2' ], "load_scripts works for good scripts");
+is_deeply(\@script_names, [ 'test2', 'test' ], "load_scripts works for good scripts");
 
